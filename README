@@ -1,0 +1,4 @@
+## OPNS - Oblivious Phone Number Service
+
+OPNS protocol is built on CCIP (ERC-3668), allowing anyone with a mobile phone to map their 
+phone number to an on-chain identity while keeping their phone number private.
