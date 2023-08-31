@@ -1,4 +1,4 @@
 {
     "private": true,
-    "workspaces": ["contract", "client", "gateway"]
+    "workspaces": ["contract", "client", "gateway","server"]
   }
