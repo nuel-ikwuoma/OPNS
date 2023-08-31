@@ -8,7 +8,7 @@ contract CounterTest is Test {
     OPNS public opns;
 
     function setUp() public {
-        opns = new OPNS();
+        // opns = new OPNS();
     }
 
     function testGatwayAddress() public {
