@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {BytesLib} from "solidity-bytes-utils/BytesLib.sol";
+
 contract OPNS {
+    using BytesLib for bytes;
+
     address public gateway;
     address public admin;
-    string[2] urls;
+    string[3] urls;
 
     event gatewayChanged(address indexed oldGateway, address indexed newGateway);
 
@@ -12,9 +16,18 @@ contract OPNS {
     error OffchainData(
         address sender,
         string[] urls,
-        bytes callData,
+        bytes32 callData,
         bytes4 callbackFunction,
-        bytes extraData);
+        bytes32 extraData);
+
+    // Not admin error
+    error NotAdmin();
+
+    // Out of range error
+    error OutOfRange();
+
+    // Untrusted data error
+    error UntrustedData();
     constructor(address _gateway, address _admin) {
         gateway = _gateway;
         admin = _admin;
@@ -26,53 +39,69 @@ contract OPNS {
     }
 
     function setGateway(address _gateway) public {
-        if(msg.sender != admin) revert();
+        if(msg.sender != admin) revert NotAdmin();
         address oldGateway = gateway;
         gateway = _gateway;
         
         emit gatewayChanged(oldGateway, _gateway);
     }
 
+    function setGatewayUrl(string memory _url, uint256 _index) public {
+        if(msg.sender != admin) revert NotAdmin();
+        if(_index > 2) revert OutOfRange();
+
+        urls[_index] = _url;
+    }
+
     // CCIP function - trigger off-chain data retrieval
     function getPhoneNumber(bytes32 _hash) public view returns (bool) {
-        string[] memory urls_ = new string[](2);
+        string[] memory urls_ = new string[](3);
         urls_[0] = urls[0];
         urls_[1] = urls[1];
+        urls_[2] = urls[2];
+
+        bytes32 extraData = getEthSignedMessageHash(_hash);
 
         revert OffchainData(
             address(this),
             urls_,
-            abi.encode(_hash),  // call data
+            _hash,      // call data
             this.getPhoneNumberCallback.selector,
-            abi.encode(_hash)   // extra data
+            extraData   // extra data
         );
     }
 
     // CCIP callback function
-    function getPhoneNumberCallback(bytes memory _response, bytes memory _hash) public view returns(bool) {
-        bytes32 msgHash = keccak256(abi.encodePacked(_hash));
-        bytes32 ethSignedMessageHash = getEthSignedMessageHash(msgHash);
-        bytes memory signature = _response;
+    function getPhoneNumberCallback(bytes memory _response, bytes32 _ethSignedHash) public view returns(bool) {
+        // slice signature and phoneHash bytes from response data
+        bytes memory signature = _response.slice(0, 65);
+        bytes memory phoneHashBytes = _response.slice(65, 32);
+        
+        bytes32 phoneHash = phoneHashBytes.toBytes32(0);
 
-        return recoverSigner(ethSignedMessageHash, signature) == gateway;
+        if(getEthSignedMessageHash(phoneHash) != _ethSignedHash) {
+            revert UntrustedData();
+        }
+
+        return recoverSigner(_ethSignedHash, signature) == gateway;
     }
 
     function getEthSignedMessageHash(
         bytes32 _messageHash
-    ) public pure returns (bytes32) {
+    ) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encodePacked("\x19Ethereum Signed Message:\n32", _messageHash)
             );
     }
 
-    function recoverSigner(bytes32 _ethSignedMessageHash, bytes memory _signature) public pure returns (address) {
+    function recoverSigner(bytes32 _ethSignedMessageHash, bytes memory _signature) internal pure returns (address) {
         (bytes32 r, bytes32 s, uint8 v) = splitSignature(_signature);
 
         return ecrecover(_ethSignedMessageHash, v, r, s);
     }
 
-    function splitSignature(bytes memory sig) public pure returns (bytes32 r, bytes32 s, uint8 v) {
+    function splitSignature(bytes memory sig) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
         require(sig.length == 65, "invalid signature length");
 
         assembly {
