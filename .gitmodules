@@ -1,0 +1,5 @@
+[submodule "contract/lib/solidity-bytes-utils"]
+	path = contract/lib/solidity-bytes-utils
+	url = https://github.com/GNSPS/solidity-bytes-utils
+[submodule "lib/solidity-bytes-utils"]
+	branch = v0.8.0
