@@ -9,6 +9,9 @@ const addressSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    otp: {
+        type: Array,
+    },
     isVerified: {
         type: Boolean,
         default: false,
